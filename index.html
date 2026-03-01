@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0e17">
+<link rel="manifest" href="manifest.json">
+<title>URGENCE DISPATCH</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Oswald:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;600&display=swap');
+
+  :root {
+    --bg-primary: #0a0e17;
+    --bg-secondary: #111827;
+    --bg-panel: #0f1623;
+    --bg-panel-header: #141d2f;
+    --border: #1e2a42;
+    --border-active: #2a3a5c;
+    --text-primary: #e2e8f0;
+    --text-secondary: #64748b;
+    --text-muted: #3a4a6b;
+    --red: #ef4444;
+    --red-glow: #dc262680;
+    --red-dark: #7f1d1d;
+    --amber: #f59e0b;
+    --amber-glow: #f59e0b40;
+    --green: #22c55e;
+    --green-glow: #22c55e40;
+    --blue: #3b82f6;
+    --blue-glow: #3b82f640;
+    --cyan: #06b6d4;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --tab-height: 56px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100dvh;
+    overflow: hidden;
+    position: relative;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .topbar {
+    height: 44px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+
+  .topbar::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--red) 20%, var(--red) 80%, transparent);
+    opacity: 0.4;
+  }
+
+  .logo {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--red);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .logo-dot {
+    width: 7px; height: 7px;
+    background: var(--red);
+    border-radius: 50%;
+    animation: pulse-dot 2s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--red-glow);
+    flex-shrink: 0;
+  }
+
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+
+  .service-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 600;
+    padding: 3px 8px; border-radius: 2px;
+    letter-spacing: 1px; border: 1px solid; white-space: nowrap;
+  }
+
+  .service-18 { color: var(--red); border-color: var(--red-dark); background: rgba(239,68,68,0.08); }
+
+  .time-factor {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 2px 5px; border-radius: 2px;
+  }
+
+  .game-clock {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px; font-weight: 600;
+    color: var(--amber); letter-spacing: 2px;
+    text-shadow: 0 0 10px var(--amber-glow);
+  }
+
+  .app-body {
+    height: calc(100dvh - 44px - var(--tab-height) - var(--safe-top) - var(--safe-bottom));
+    position: relative; overflow: hidden;
+  }
+
+  .tab-view {
+    position: absolute; inset: 0;
+    overflow-y: auto; display: none;
+    background: var(--bg-primary);
+  }
+
+  .tab-view.active { display: flex; flex-direction: column; }
+
+  .tab-bar {
+    height: var(--tab-height);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center;
+    justify-content: space-around;
+    flex-shrink: 0; z-index: 10;
+    padding-bottom: var(--safe-bottom);
+  }
+
+  .tab-btn {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+    background: none; border: none;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: 0.5px;
+    padding: 6px 12px; cursor: pointer;
+    position: relative; transition: color 0.2s;
+  }
+
+  .tab-btn .tab-icon { font-size: 20px; }
+  .tab-btn.active { color: var(--red); }
+
+  .tab-btn .tab-badge {
+    position: absolute; top: 2px; right: 4px;
+    background: var(--red); color: #fff;
+    font-size: 9px; font-weight: 700;
+    min-width: 16px; height: 16px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 4px;
+    box-shadow: 0 0 8px var(--red-glow);
+    animation: badge-pulse 1.5s ease-in-out infinite;
+  }
+
+  .tab-badge.hidden { display: none; }
+
+  @keyframes badge-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+
+  .panel-header {
+    background: var(--bg-panel-header);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    justify-content: space-between; flex-shrink: 0;
+  }
+
+  .panel-title {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 500; font-size: 12px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text-secondary);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .panel-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 2px;
+  }
+
+  .panel-body {
+    flex: 1; overflow-y: auto; padding: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .panel-body::-webkit-scrollbar { width: 3px; }
+  .panel-body::-webkit-scrollbar-track { background: transparent; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 2px; }
+
+  .call-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px;
+    margin-bottom: 8px; cursor: pointer;
+    transition: all 0.2s; position: relative; overflow: hidden;
+  }
+
+  .call-card:active { transform: scale(0.98); }
+
+  .call-card.ringing {
+    border-color: var(--red);
+    animation: ring-pulse 1.5s ease-in-out infinite;
+  }
+
+  .call-card.ringing::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: var(--red);
+    box-shadow: 0 0 10px var(--red-glow);
+  }
+
+  @keyframes ring-pulse { 0%, 100% { background: var(--bg-secondary); } 50% { background: rgba(239,68,68,0.05); } }
+
+  .call-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+
+  .call-type {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 1px; padding: 2px 8px; border-radius: 2px;
+  }
+
+  .call-type.urgence { color: var(--red); background: rgba(239,68,68,0.1); }
+  .call-type.standard { color: var(--amber); background: rgba(245,158,11,0.1); }
+
+  .call-time { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); }
+  .call-nature { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .call-address { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
+  .call-actions { display: flex; gap: 6px; margin-top: 10px; }
+
+  .phone-icon { display: inline-block; animation: phone-ring 0.5s ease-in-out infinite alternate; }
+  @keyframes phone-ring { 0% { transform: rotate(-15deg); } 100% { transform: rotate(15deg); } }
+
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 8px 12px; border: 1px solid;
+    border-radius: 4px; cursor: pointer;
+    transition: all 0.15s; background: transparent;
+    white-space: nowrap;
+  }
+
+  .btn:active { transform: scale(0.95); }
+  .btn-answer { color: var(--green); border-color: #166534; flex: 1; }
+  .btn-answer:active { background: rgba(34,197,94,0.2); }
+  .btn-reject { color: var(--red); border-color: var(--red-dark); }
+  .btn-reject:active { background: rgba(239,68,68,0.2); }
+  .btn-transfer { color: var(--blue); border-color: #1e3a5f; }
+  .btn-transfer:active { background: rgba(59,130,246,0.2); }
+  .btn-dispatch { color: #fff; background: var(--red); border-color: var(--red); padding: 10px 16px; font-size: 11px; flex: 1; }
+  .btn-dispatch:active { background: #dc2626; }
+  .btn-close-modal { color: var(--text-secondary); border-color: var(--border); }
+
+  .tab-view-map { position: relative; }
+  .tab-view-map.active { display: block; }
+
+  #map { width: 100%; height: 100%; }
+  .leaflet-container { background: var(--bg-primary) !important; }
+
+  .map-stats {
+    position: absolute; bottom: 10px; left: 8px; right: 8px;
+    z-index: 501; display: grid;
+    grid-template-columns: repeat(4, 1fr); gap: 6px;
+  }
+
+  .stat-card {
+    background: rgba(15,22,35,0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; text-align: center;
+  }
+
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px; letter-spacing: 0.5px;
+    text-transform: uppercase; color: var(--text-muted); margin-bottom: 1px;
+  }
+
+  .stat-value { font-family: 'Oswald', sans-serif; font-size: 18px; font-weight: 600; }
+  .stat-value.red { color: var(--red); }
+  .stat-value.amber { color: var(--amber); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.blue { color: var(--blue); }
+
+  .intervention-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px;
+    margin-bottom: 8px; border-left: 3px solid;
+    transition: all 0.2s;
+  }
+
+  .intervention-card:active { transform: scale(0.98); }
+  .intervention-card.en-cours { border-left-color: var(--amber); }
+  .intervention-card.sur-place { border-left-color: var(--green); }
+  .intervention-card.critique { border-left-color: var(--red); }
+
+  .intervention-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+
+  .intervention-id { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); }
+
+  .intervention-status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 2px;
+  }
+
+  .status-en-route { color: var(--amber); background: rgba(245,158,11,0.1); }
+  .status-sur-place { color: var(--green); background: rgba(34,197,94,0.1); }
+  .status-critique { color: var(--red); background: rgba(239,68,68,0.15); animation: blink-status 1s ease-in-out infinite; }
+
+  @keyframes blink-status { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .intervention-nature { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .intervention-address { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+  .intervention-vehicles { display: flex; flex-wrap: wrap; gap: 4px; }
+
+  .vehicle-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; font-weight: 600;
+    padding: 3px 8px; border-radius: 3px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border); color: var(--text-secondary);
+  }
+
+  .vehicle-tag.dispatched { color: var(--amber); border-color: rgba(245,158,11,0.3); }
+  .vehicle-tag.on-scene { color: var(--green); border-color: rgba(34,197,94,0.3); }
+
+  .active-call-overlay {
+    display: none; position: fixed; inset: 0;
+    background: var(--bg-primary); z-index: 1000; flex-direction: column;
+  }
+
+  .active-call-overlay.visible { display: flex; animation: slideUp 0.3s ease; }
+
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+  .modal-header {
+    background: var(--bg-panel-header);
+    padding: 12px 16px; padding-top: calc(12px + var(--safe-top));
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+  }
+
+  .modal-header h3 {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 500; font-size: 13px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--red);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .modal-body { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+
+  .caller-text {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px;
+    margin-bottom: 16px; font-size: 14px;
+    line-height: 1.6; min-height: 70px; position: relative;
+  }
+
+  .caller-text::before { content: '🔊'; position: absolute; top: 8px; right: 10px; font-size: 14px; opacity: 0.4; }
+
+  .typing-cursor {
+    display: inline-block; width: 2px; height: 15px;
+    background: var(--red); margin-left: 2px;
+    vertical-align: middle;
+    animation: blink-cursor 0.8s step-end infinite;
+  }
+
+  @keyframes blink-cursor { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+  .form-section { margin-bottom: 14px; }
+
+  .form-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--text-muted);
+    margin-bottom: 6px; display: block;
+  }
+
+  .form-select, .form-input {
+    width: 100%; background: var(--bg-secondary);
+    border: 1px solid var(--border); color: var(--text-primary);
+    padding: 10px 12px; border-radius: 6px;
+    font-family: 'Source Sans 3', sans-serif; font-size: 14px;
+    -webkit-appearance: none; appearance: none;
+  }
+
+  .form-select:focus, .form-input:focus { outline: none; border-color: var(--red); box-shadow: 0 0 8px var(--red-glow); }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .severity-selector { display: flex; gap: 6px; }
+
+  .severity-btn {
+    flex: 1; padding: 8px 4px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg-secondary); color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer; text-align: center; transition: all 0.15s;
+  }
+
+  .severity-btn:active { transform: scale(0.93); }
+  .severity-btn.active-1 { color: var(--green); border-color: var(--green); background: rgba(34,197,94,0.1); }
+  .severity-btn.active-2 { color: var(--amber); border-color: var(--amber); background: rgba(245,158,11,0.1); }
+  .severity-btn.active-3 { color: #f97316; border-color: #f97316; background: rgba(249,115,22,0.1); }
+  .severity-btn.active-4 { color: var(--red); border-color: var(--red); background: rgba(239,68,68,0.1); }
+  .severity-btn.active-5 { color: #dc2626; border-color: #dc2626; background: rgba(220,38,38,0.15); }
+
+  .modal-footer {
+    padding: 12px 16px; padding-bottom: calc(12px + var(--safe-bottom));
+    border-top: 1px solid var(--border);
+    display: flex; gap: 8px; flex-shrink: 0;
+    background: var(--bg-panel-header);
+  }
+
+  .audio-wave { display: flex; align-items: end; gap: 2px; height: 14px; }
+  .audio-wave span { display: block; width: 2px; background: var(--red); border-radius: 1px; animation: wave 1.2s ease-in-out infinite; }
+  .audio-wave span:nth-child(1) { height: 40%; animation-delay: 0s; }
+  .audio-wave span:nth-child(2) { height: 70%; animation-delay: 0.1s; }
+  .audio-wave span:nth-child(3) { height: 100%; animation-delay: 0.2s; }
+  .audio-wave span:nth-child(4) { height: 60%; animation-delay: 0.3s; }
+  .audio-wave span:nth-child(5) { height: 80%; animation-delay: 0.15s; }
+
+  @keyframes wave { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
+
+  .toast {
+    position: fixed; top: calc(50px + var(--safe-top));
+    left: 10px; right: 10px; z-index: 2000;
+    background: var(--bg-panel); border: 1px solid var(--red);
+    border-radius: 6px; padding: 10px 14px;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5), 0 0 15px var(--red-glow);
+    transform: translateY(-120%);
+    transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+  }
+
+  .toast.visible { transform: translateY(0); }
+  .toast-text { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-primary); }
+
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; color: var(--text-muted); }
+  .empty-state-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
+  .empty-state-text { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.5px; }
+
+  .marker-fire { background: var(--red); border: 2px solid #fff; border-radius: 50%; width: 10px!important; height: 10px!important; box-shadow: 0 0 6px var(--red-glow); }
+  .marker-hospital { background: var(--cyan); border: 2px solid #fff; border-radius: 50%; width: 10px!important; height: 10px!important; }
+  .marker-police { background: var(--blue); border: 2px solid #fff; border-radius: 50%; width: 10px!important; height: 10px!important; }
+
+  .marker-intervention {
+    width: 16px!important; height: 16px!important;
+    background: var(--amber); border: 2px solid #fff;
+    border-radius: 3px; transform: rotate(45deg);
+    box-shadow: 0 0 10px var(--amber-glow);
+    animation: pulse-marker 2s ease-in-out infinite;
+  }
+  .marker-intervention.critique { background: var(--red); box-shadow: 0 0 10px var(--red-glow); }
+
+  @keyframes pulse-marker { 0%, 100% { box-shadow: 0 0 10px var(--amber-glow); } 50% { box-shadow: 0 0 20px var(--amber-glow); } }
+
+  .marker-vehicle { font-size: 18px; filter: drop-shadow(0 0 3px rgba(0,0,0,0.8)); }
+
+  @media (min-width: 900px) {
+    .app-body {
+      height: calc(100dvh - 44px - var(--safe-top));
+      display: grid;
+      grid-template-columns: 320px 1fr 300px;
+      gap: 1px; background: var(--border);
+    }
+    .tab-view { position: relative; display: flex !important; flex-direction: column; overflow: hidden; }
+    .tab-bar { display: none; }
+    .active-call-overlay.visible {
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+      justify-content: center; align-items: center;
+    }
+    .active-call-modal-wrap {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-active);
+      border-radius: 8px; width: 560px; max-height: 85vh;
+      overflow: hidden;
+      box-shadow: 0 0 60px rgba(0,0,0,0.5), 0 0 30px var(--red-glow);
+      display: flex; flex-direction: column;
+    }
+    .modal-header { padding-top: 14px; }
+    .modal-footer { padding-bottom: 14px; }
+  }
+
+  @media (max-width: 899px) {
+    .active-call-modal-wrap { display: flex; flex-direction: column; height: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><div class="logo-dot"></div>URGENCE DISPATCH</div>
+  <div class="topbar-right">
+    <div class="service-badge service-18">18</div>
+    <div class="time-factor">×10</div>
+    <div class="game-clock" id="gameClock">08:00:00</div>
+  </div>
+</div>
+
+<div class="app-body">
+  <div class="tab-view active" id="tabCalls">
+    <div class="panel-header">
+      <div class="panel-title">📞 Appels entrants</div>
+      <div class="panel-count" style="color:var(--red);background:rgba(239,68,68,0.1)" id="callCount">0</div>
+    </div>
+    <div class="panel-body" id="callsList">
+      <div class="empty-state"><div class="empty-state-icon">📡</div><div class="empty-state-text">En attente d'appels...</div></div>
+    </div>
+  </div>
+
+  <div class="tab-view tab-view-map" id="tabMap">
+    <div id="map"></div>
+    <div class="map-stats">
+      <div class="stat-card"><div class="stat-label">Interv.</div><div class="stat-value amber" id="statInterventions">0</div></div>
+      <div class="stat-card"><div class="stat-label">Engagés</div><div class="stat-value red" id="statVehicles">0</div></div>
+      <div class="stat-card"><div class="stat-label">Résolues</div><div class="stat-value green" id="statResolved">0</div></div>
+      <div class="stat-card"><div class="stat-label">Tps moy</div><div class="stat-value blue" id="statAvgTime">--:--</div></div>
+    </div>
+  </div>
+
+  <div class="tab-view" id="tabInterventions">
+    <div class="panel-header">
+      <div class="panel-title">🚨 Interventions</div>
+      <div class="panel-count" style="color:var(--amber);background:rgba(245,158,11,0.1)" id="interventionCount">0</div>
+    </div>
+    <div class="panel-body" id="interventionsList">
+      <div class="empty-state"><div class="empty-state-icon">🚒</div><div class="empty-state-text">Aucune intervention en cours</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="tabCalls"><span class="tab-icon">📞</span>APPELS<span class="tab-badge hidden" id="tabCallsBadge">0</span></button>
+  <button class="tab-btn" data-tab="tabMap"><span class="tab-icon">🗺️</span>CARTE</button>
+  <button class="tab-btn" data-tab="tabInterventions"><span class="tab-icon">🚨</span>INTERV.<span class="tab-badge hidden" id="tabInterBadge">0</span></button>
+</div>
+
+<div class="active-call-overlay" id="callModal">
+  <div class="active-call-modal-wrap">
+    <div class="modal-header">
+      <h3><div class="audio-wave"><span></span><span></span><span></span><span></span><span></span></div>Appel en cours</h3>
+      <button class="btn btn-close-modal" onclick="closeModal()" style="padding:4px 10px;">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="caller-text" id="callerText"><span class="typing-cursor"></span></div>
+      <div class="form-row">
+        <div class="form-section">
+          <label class="form-label">Nature</label>
+          <select class="form-select" id="natureSelect">
+            <option value="">— Sélectionner —</option>
+            <option>Feu d'habitation</option>
+            <option>Feu de véhicule</option>
+            <option>AVP</option>
+            <option>Malaise</option>
+            <option>Chute</option>
+            <option>Fuite de gaz</option>
+            <option>Ascenseur bloqué</option>
+          </select>
+        </div>
+        <div class="form-section">
+          <label class="form-label">Gravité</label>
+          <div class="severity-selector" id="severitySelector">
+            <div class="severity-btn" data-level="1">1</div>
+            <div class="severity-btn" data-level="2">2</div>
+            <div class="severity-btn" data-level="3">3</div>
+            <div class="severity-btn" data-level="4">4</div>
+            <div class="severity-btn" data-level="5">5</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-section">
+        <label class="form-label">Adresse</label>
+        <input class="form-input" type="text" id="addressInput" placeholder="Adresse..." />
+      </div>
+      <div class="form-section">
+        <label class="form-label">Moyens</label>
+        <div class="severity-selector" style="flex-wrap:wrap">
+          <div class="severity-btn vehicle-select" data-vehicle="VSAV">VSAV</div>
+          <div class="severity-btn vehicle-select" data-vehicle="FPT">FPT</div>
+          <div class="severity-btn vehicle-select" data-vehicle="EPA">EPA</div>
+          <div class="severity-btn vehicle-select" data-vehicle="VLCG">VLCG</div>
+          <div class="severity-btn vehicle-select" data-vehicle="CCF">CCF</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-transfer" onclick="transferCall()">↗ 15</button>
+      <button class="btn btn-reject" onclick="closeModal()">Raccrocher</button>
+      <button class="btn btn-dispatch" onclick="dispatchCall()">🚒 Engager</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><div class="toast-text" id="toastText"></div></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+const tabBtns=document.querySelectorAll('.tab-btn');
+const tabViews=document.querySelectorAll('.tab-view');
+tabBtns.forEach(btn=>{btn.addEventListener('click',()=>{
+  const t=btn.dataset.tab;
+  tabBtns.forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  tabViews.forEach(v=>v.classList.remove('active'));
+  document.getElementById(t).classList.add('active');
+  if(t==='tabMap')setTimeout(()=>map.invalidateSize(),50);
+});});
+
+const state={gameTime:new Date(2026,1,26,8,0,0),timeFactor:10,calls:[],interventions:[],resolved:0,vehiclesEngaged:0,callId:1,interId:1,activeCallId:null};
+
+const map=L.map('map',{zoomControl:false,attributionControl:false}).setView([43.2965,5.3698],13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
+L.control.zoom({position:'topright'}).addTo(map);
+
+const stations=[
+  {name:'CS Centre',type:'fire',lat:43.2965,lng:5.3698},
+  {name:'CS La Rose',type:'fire',lat:43.3320,lng:5.4270},
+  {name:'CS Plombières',type:'fire',lat:43.3120,lng:5.3780},
+  {name:'CS Endoume',type:'fire',lat:43.2850,lng:5.3520},
+  {name:'CS Capelette',type:'fire',lat:43.2870,lng:5.4010},
+  {name:'Hôp. La Timone',type:'hospital',lat:43.2890,lng:5.4032},
+  {name:'Hôp. Nord',type:'hospital',lat:43.3580,lng:5.3640},
+  {name:'Commissariat',type:'police',lat:43.2955,lng:5.3750}
+];
+
+stations.forEach(s=>{
+  const c=s.type==='fire'?'marker-fire':s.type==='hospital'?'marker-hospital':'marker-police';
+  L.marker([s.lat,s.lng],{icon:L.divIcon({className:c,iconSize:[10,10]})}).addTo(map).bindTooltip(s.name,{direction:'top',offset:[0,-8]});
+});
+
+setInterval(()=>{
+  state.gameTime=new Date(state.gameTime.getTime()+1000*state.timeFactor);
+  const h=String(state.gameTime.getHours()).padStart(2,'0');
+  const m=String(state.gameTime.getMinutes()).padStart(2,'0');
+  const s=String(state.gameTime.getSeconds()).padStart(2,'0');
+  document.getElementById('gameClock').textContent=`${h}:${m}:${s}`;
+},1000);
+
+const scenarios=[
+  {nature:"Feu d'habitation",type:'urgence',severity:4,texts:["Allô ? Il y a le feu chez mon voisin ! Au 45 boulevard Longchamp, au troisième étage. De la fumée noire sort par les fenêtres !","Incendie au 12 rue de Rome ! Les flammes sortent au deuxième, des gens crient aux fenêtres !"],addresses:['45 Bd Longchamp, 13001','12 Rue de Rome, 13006'],vehicles:['FPT','EPA','VSAV'],coords:[[43.299,5.388],[43.292,5.381]]},
+  {nature:"AVP",type:'urgence',severity:3,texts:["Accident sur l'A50 direction Aubagne. Voiture retournée, le conducteur bouge plus !","Scooter renversé au rond-point du Prado. Le gars au sol, conscient mais peut pas bouger."],addresses:['A50 dir. Aubagne','Rd-point du Prado, 13008'],vehicles:['VSAV','FPT'],coords:[[43.27,5.42],[43.271,5.392]]},
+  {nature:"Malaise",type:'standard',severity:2,texts:["Au Vieux-Port, un homme effondré sur un banc. Tout pâle, douleur thoracique.","Ma mère tombée dans les escaliers au 8 rue Sainte. 82 ans, jambe immobile."],addresses:['Quai Rive Neuve, 13007','8 Rue Sainte, 13001'],vehicles:['VSAV'],coords:[[43.2925,5.365],[43.2935,5.373]]},
+  {nature:"Fuite de gaz",type:'urgence',severity:3,texts:["Forte odeur de gaz au 23 av. des Chartreux. Personne répond au rez-de-chaussée."],addresses:['23 Av. Chartreux, 13004'],vehicles:['FPT','VSAV'],coords:[[43.305,5.386]]},
+  {nature:"Feu de véhicule",type:'standard',severity:2,texts:["Voiture en feu parking Grand Littoral. Loin des autres véhicules, personne dedans."],addresses:['Grand Littoral, 13016'],vehicles:['FPT'],coords:[[43.356,5.352]]}
+];
+
+function generateCall(){
+  const sc=scenarios[Math.floor(Math.random()*scenarios.length)];
+  const v=Math.floor(Math.random()*sc.texts.length);
+  state.calls.unshift({id:state.callId++,nature:sc.nature,type:sc.type,severity:sc.severity,text:sc.texts[v],address:sc.addresses[v],coords:sc.coords[v],vehicles:sc.vehicles,time:new Date(state.gameTime),ringing:true});
+  renderCalls();updateBadges();showToast('📞 '+sc.nature);
+}
+
+function renderCalls(){
+  const el=document.getElementById('callsList');
+  document.getElementById('callCount').textContent=state.calls.length;
+  if(!state.calls.length){el.innerHTML='<div class="empty-state"><div class="empty-state-icon">📡</div><div class="empty-state-text">En attente d\'appels...</div></div>';return;}
+  el.innerHTML=state.calls.map(c=>{
+    const h=String(c.time.getHours()).padStart(2,'0'),m=String(c.time.getMinutes()).padStart(2,'0');
+    return`<div class="call-card ${c.ringing?'ringing':''}" onclick="answerCall(${c.id})"><div class="call-header"><span class="call-type ${c.type}">${c.type.toUpperCase()}</span><span class="call-time">${c.ringing?'<span class="phone-icon">📞</span>':'📋'} ${h}:${m}</span></div><div class="call-nature">${c.nature}</div><div class="call-address">📍 ${c.address}</div><div class="call-actions"><button class="btn btn-answer" onclick="event.stopPropagation();answerCall(${c.id})">✓ Décrocher</button><button class="btn btn-reject" onclick="event.stopPropagation();rejectCall(${c.id})">✕</button><button class="btn btn-transfer" onclick="event.stopPropagation();showToast('↗ Transféré au 15');rejectCall(${c.id})">↗15</button></div></div>`;
+  }).join('');
+}
+
+function answerCall(id){
+  const c=state.calls.find(x=>x.id===id);if(!c)return;
+  c.ringing=false;state.activeCallId=id;renderCalls();updateBadges();
+  document.getElementById('callModal').classList.add('visible');
+  const el=document.getElementById('callerText');
+  el.innerHTML='<span class="typing-cursor"></span>';
+  typeText(el,c.text,0);
+  document.getElementById('addressInput').value=c.address;
+  document.querySelectorAll('.severity-btn[data-level]').forEach(b=>b.className='severity-btn');
+  const sb=document.querySelector(`.severity-btn[data-level="${c.severity}"]`);
+  if(sb)sb.classList.add(`active-${c.severity}`);
+  document.querySelectorAll('.vehicle-select').forEach(b=>b.className='severity-btn vehicle-select');
+}
+
+function typeText(el,text,i){
+  if(i<=text.length){el.innerHTML=text.substring(0,i)+'<span class="typing-cursor"></span>';setTimeout(()=>typeText(el,text,i+1),25+Math.random()*20);}
+}
+
+function dispatchCall(){
+  const c=state.calls.find(x=>x.id===state.activeCallId);if(!c)return;
+  state.calls=state.calls.filter(x=>x.id!==state.activeCallId);
+  const inter={id:state.interId++,nature:c.nature,address:c.address,coords:c.coords,severity:c.severity,status:'en-route',vehicles:c.vehicles,time:new Date(state.gameTime)};
+  state.interventions.unshift(inter);state.vehiclesEngaged+=inter.vehicles.length;
+  const cls=c.severity>=4?'marker-intervention critique':'marker-intervention';
+  inter.marker=L.marker(c.coords,{icon:L.divIcon({className:cls,iconSize:[16,16]})}).addTo(map).bindTooltip('🚨 '+inter.nature,{direction:'top',offset:[0,-12]});
+  const nr=stations.filter(s=>s.type==='fire').sort((a,b)=>Math.hypot(a.lat-c.coords[0],a.lng-c.coords[1])-Math.hypot(b.lat-c.coords[0],b.lng-c.coords[1]))[0];
+  const vm=L.marker([nr.lat,nr.lng],{icon:L.divIcon({className:'marker-vehicle',html:'🚒',iconSize:[18,18]})}).addTo(map);
+  animateMarker(vm,[nr.lat,nr.lng],c.coords,8000,()=>{
+    inter.status='sur-place';renderInterventions();updateBadges();showToast('✅ Sur place — '+inter.nature);
+    setTimeout(()=>{inter.status='resolved';state.resolved++;state.vehiclesEngaged-=inter.vehicles.length;state.interventions=state.interventions.filter(i=>i.id!==inter.id);if(inter.marker)map.removeLayer(inter.marker);map.removeLayer(vm);renderInterventions();updateStats();updateBadges();showToast('🏁 Résolue — '+inter.nature);},15000+Math.random()*10000);
+  });
+  closeModal();renderCalls();renderInterventions();updateStats();updateBadges();showToast('🚒 '+inter.vehicles.join(', '));
+  if(window.innerWidth<900)document.querySelector('[data-tab="tabMap"]').click();
+  map.flyTo(c.coords,15,{duration:1});
+}
+
+function animateMarker(mk,from,to,dur,cb){
+  const st=Date.now();
+  (function step(){const p=Math.min((Date.now()-st)/dur,1),e=p<.5?2*p*p:-1+(4-2*p)*p;mk.setLatLng([from[0]+(to[0]-from[0])*e,from[1]+(to[1]-from[1])*e]);p<1?requestAnimationFrame(step):cb&&cb();})();
+}
+
+function renderInterventions(){
+  const el=document.getElementById('interventionsList');
+  document.getElementById('interventionCount').textContent=state.interventions.length;
+  if(!state.interventions.length){el.innerHTML='<div class="empty-state"><div class="empty-state-icon">🚒</div><div class="empty-state-text">Aucune intervention en cours</div></div>';return;}
+  el.innerHTML=state.interventions.map(i=>{
+    const sc=i.severity>=4?'critique':i.status==='sur-place'?'sur-place':'en-cours';
+    const sl=i.status==='en-route'?'EN ROUTE':'SUR PLACE';
+    const sb=i.status==='en-route'?'status-en-route':i.severity>=4?'status-critique':'status-sur-place';
+    return`<div class="intervention-card ${sc}" onclick="goTo(${i.coords[0]},${i.coords[1]})"><div class="intervention-header"><span class="intervention-id">INT-${String(i.id).padStart(4,'0')}</span><span class="intervention-status ${sb}">${sl}</span></div><div class="intervention-nature">${i.nature}</div><div class="intervention-address">📍 ${i.address}</div><div class="intervention-vehicles">${i.vehicles.map(v=>`<span class="vehicle-tag ${i.status==='sur-place'?'on-scene':'dispatched'}">${v}</span>`).join('')}</div></div>`;
+  }).join('');
+}
+
+function goTo(lat,lng){if(window.innerWidth<900)document.querySelector('[data-tab="tabMap"]').click();setTimeout(()=>map.flyTo([lat,lng],16,{duration:.8}),100);}
+
+function updateStats(){
+  document.getElementById('statInterventions').textContent=state.interventions.length;
+  document.getElementById('statVehicles').textContent=state.vehiclesEngaged;
+  document.getElementById('statResolved').textContent=state.resolved;
+  document.getElementById('statAvgTime').textContent=state.resolved>0?'06:42':'--:--';
+}
+
+function updateBadges(){
+  const r=state.calls.filter(c=>c.ringing).length;
+  const cb=document.getElementById('tabCallsBadge');cb.textContent=r;cb.classList.toggle('hidden',r===0);
+  const ib=document.getElementById('tabInterBadge');ib.textContent=state.interventions.length;ib.classList.toggle('hidden',state.interventions.length===0);
+}
+
+function rejectCall(id){state.calls=state.calls.filter(c=>c.id!==id);renderCalls();updateBadges();}
+function closeModal(){document.getElementById('callModal').classList.remove('visible');state.activeCallId=null;}
+function transferCall(){showToast('↗ Transféré au SAMU');closeModal();if(state.activeCallId){state.calls=state.calls.filter(c=>c.id!==state.activeCallId);renderCalls();updateBadges();}}
+function showToast(t){const el=document.getElementById('toast');document.getElementById('toastText').textContent=t;el.classList.add('visible');setTimeout(()=>el.classList.remove('visible'),3000);}
+
+document.querySelectorAll('.severity-btn[data-level]').forEach(b=>{b.addEventListener('click',()=>{document.querySelectorAll('.severity-btn[data-level]').forEach(x=>x.className='severity-btn');b.classList.add(`active-${b.dataset.level}`);});});
+document.querySelectorAll('.vehicle-select').forEach(b=>{b.addEventListener('click',()=>b.classList.toggle('active-2'));});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
+setTimeout(()=>generateCall(),2000);
+setTimeout(()=>generateCall(),6000);
+setTimeout(()=>generateCall(),12000);
+setInterval(()=>{if(Math.random()<.4)generateCall();},10000);
+
+renderCalls();renderInterventions();updateStats();updateBadges();
+</script>
+</body>
+</html>
