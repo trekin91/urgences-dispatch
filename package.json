@@ -1,0 +1,29 @@
+{
+  "name": "urgence-dispatch",
+  "version": "0.1.0",
+  "description": "Simulateur multijoueur de Centre de Traitement des Appels d'Urgence (18/15/17)",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "import-osm": "node scripts/import-osm.js",
+    "migrate": "node server/db/migrate.js"
+  },
+  "keywords": ["simulation", "emergency", "dispatch", "multiplayer", "socket.io"],
+  "license": "MIT",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1",
+    "socket.io": "^4.8.1",
+    "uuid": "^11.0.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
