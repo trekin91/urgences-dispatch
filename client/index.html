@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0e17">
+<link rel="manifest" href="manifest.json">
+<title>URGENCE DISPATCH</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><div class="logo-dot"></div>URGENCE DISPATCH</div>
+  <div class="topbar-right">
+    <div class="service-badge service-18">18</div>
+    <div class="time-factor" id="timeFactor">×10</div>
+    <div class="game-clock" id="gameClock">08:00:00</div>
+  </div>
+</div>
+
+<div class="app-body">
+  <div class="tab-view active" id="tabCalls">
+    <div class="panel-header">
+      <div class="panel-title">📞 Appels entrants</div>
+      <div class="panel-count" style="color:var(--red);background:rgba(239,68,68,0.1)" id="callCount">0</div>
+    </div>
+    <div class="panel-body" id="callsList">
+      <div class="empty-state"><div class="empty-state-icon">📡</div><div class="empty-state-text">En attente d'appels...</div></div>
+    </div>
+  </div>
+
+  <div class="tab-view tab-view-map" id="tabMap">
+    <div id="map"></div>
+    <div class="map-stats">
+      <div class="stat-card"><div class="stat-label">Interv.</div><div class="stat-value amber" id="statInterventions">0</div></div>
+      <div class="stat-card"><div class="stat-label">Engagés</div><div class="stat-value red" id="statVehicles">0</div></div>
+      <div class="stat-card"><div class="stat-label">Résolues</div><div class="stat-value green" id="statResolved">0</div></div>
+      <div class="stat-card"><div class="stat-label">Tps moy</div><div class="stat-value blue" id="statAvgTime">--:--</div></div>
+    </div>
+  </div>
+
+  <div class="tab-view" id="tabInterventions">
+    <div class="panel-header">
+      <div class="panel-title">🚨 Interventions</div>
+      <div class="panel-count" style="color:var(--amber);background:rgba(245,158,11,0.1)" id="interventionCount">0</div>
+    </div>
+    <div class="panel-body" id="interventionsList">
+      <div class="empty-state"><div class="empty-state-icon">🚒</div><div class="empty-state-text">Aucune intervention en cours</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="tabCalls"><span class="tab-icon">📞</span>APPELS<span class="tab-badge hidden" id="tabCallsBadge">0</span></button>
+  <button class="tab-btn" data-tab="tabMap"><span class="tab-icon">🗺️</span>CARTE</button>
+  <button class="tab-btn" data-tab="tabInterventions"><span class="tab-icon">🚨</span>INTERV.<span class="tab-badge hidden" id="tabInterBadge">0</span></button>
+</div>
+
+<div class="active-call-overlay" id="callModal">
+  <div class="active-call-modal-wrap">
+    <div class="modal-header">
+      <h3><div class="audio-wave"><span></span><span></span><span></span><span></span><span></span></div>Appel en cours</h3>
+      <button class="btn btn-close-modal" onclick="closeModal()" style="padding:4px 10px;">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="caller-text" id="callerText"><span class="typing-cursor"></span></div>
+      <div class="form-row">
+        <div class="form-section">
+          <label class="form-label">Nature</label>
+          <select class="form-select" id="natureSelect">
+            <option value="">— Sélectionner —</option>
+            <option>Feu d'habitation</option>
+            <option>Feu de véhicule</option>
+            <option>AVP</option>
+            <option>Malaise</option>
+            <option>Chute</option>
+            <option>Fuite de gaz</option>
+            <option>Ascenseur bloqué</option>
+          </select>
+        </div>
+        <div class="form-section">
+          <label class="form-label">Gravité</label>
+          <div class="severity-selector" id="severitySelector">
+            <div class="severity-btn" data-level="1">1</div>
+            <div class="severity-btn" data-level="2">2</div>
+            <div class="severity-btn" data-level="3">3</div>
+            <div class="severity-btn" data-level="4">4</div>
+            <div class="severity-btn" data-level="5">5</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-section">
+        <label class="form-label">Adresse</label>
+        <input class="form-input" type="text" id="addressInput" placeholder="Adresse..." />
+      </div>
+      <div class="form-section">
+        <label class="form-label">Moyens</label>
+        <div class="severity-selector" style="flex-wrap:wrap">
+          <div class="severity-btn vehicle-select" data-vehicle="VSAV">VSAV</div>
+          <div class="severity-btn vehicle-select" data-vehicle="FPT">FPT</div>
+          <div class="severity-btn vehicle-select" data-vehicle="EPA">EPA</div>
+          <div class="severity-btn vehicle-select" data-vehicle="VLCG">VLCG</div>
+          <div class="severity-btn vehicle-select" data-vehicle="CCF">CCF</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-transfer" onclick="transferCall()">↗ 15</button>
+      <button class="btn btn-reject" onclick="closeModal()">Raccrocher</button>
+      <button class="btn btn-dispatch" onclick="dispatchCall()">🚒 Engager</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><div class="toast-text" id="toastText"></div></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/map.js"></script>
+<script src="js/socket.js"></script>
+<script src="js/calls.js"></script>
+<script src="js/dispatch.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
